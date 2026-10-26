@@ -76,6 +76,7 @@
   #fight { position: fixed; inset: 0; height: 100%; height: 100dvh; min-height: 0; max-width: none; padding: 0 0 env(safe-area-inset-bottom, 0px); gap: 0; justify-content: flex-start; }
   .top { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; max-width: 760px; width: 100%; margin: 0 auto; }
   .top .spacer { flex: 1; }
+  #mapname { font-size: 15px; font-weight: 600; color: var(--muted); white-space: nowrap; }
   #clock { font-size: 20px; font-variant-numeric: tabular-nums; background: rgba(0,0,0,.3); padding: 2px 12px; border-radius: 12px; }
   @media (max-width: 420px) { .top .title { display: none; } }
   .arena-wrap { flex: 1; min-height: 0; position: relative; }
@@ -148,6 +149,7 @@
     <b class="title">🤖 Googly Mechs</b>
     <span class="spacer"></span>
     <b id="clock">0:00</b>
+    <span id="mapname"></span>
     <span class="spacer"></span>
     <button class="btn small" id="speed" type="button">1×</button>
     <button class="btn small" id="mute" type="button" aria-label="Sound">🔊</button>
@@ -171,6 +173,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="mechs.js?v=3"></script>
+<script src="mechs.js?v=4"></script>
 </body>
 </html>

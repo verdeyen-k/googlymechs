@@ -8,9 +8,9 @@
   const spent = up => UPGRADES.reduce((s, u) => s + (up[u.k] || 0) * ((up[u.k] || 0) + 1) / 2, 0);
 
   const TEMPLATES = {
-    spider:   { name: 'Spider',   icon: '🕷️', hp: 155, speed: 105, r: 17, fast: 1,   desc: 'Fast and small, but fragile' },
-    humanoid: { name: 'Humanoid', icon: '🤖', hp: 210, speed: 75,  r: 21, fast: 1.2, desc: 'Its arms shoot and swing 20% faster' },
-    fourleg:  { name: '4-Legged', icon: '🐕', hp: 270, speed: 58,  r: 23, fast: 1,   desc: 'Slow, but very tough' },
+    spider:   { name: 'Spider',   icon: '🕷️', hp: 170, speed: 115, r: 16, fast: 1,   mud: 0.35,   desc: 'Fast and small, but fragile' },
+    humanoid: { name: 'Humanoid', icon: '🤖', hp: 210, speed: 75,  r: 21, fast: 1.2, mud: 0.6,  desc: 'Its arms shoot and swing 20% faster' },
+    fourleg:  { name: '4-Legged', icon: '🐕', hp: 270, speed: 58,  r: 23, fast: 1,   mud: 0.9,    desc: 'Slow, but very tough' },
   };
   const TEMPLATE_KEYS = Object.keys(TEMPLATES);
   const UPGRADES = [
@@ -36,7 +36,7 @@
     const T = TEMPLATES[b.t] || TEMPLATES.humanoid, up = b.up || {}, sz = SIZE[up.size || 0];
     const gun = GUN[up.gun || 0], melee = MELEE[up.melee || 0];
     return {
-      hp: Math.round(T.hp * sz.hp), speed: T.speed * sz.sp, r: T.r * sz.s, armor: ARMOR[up.armor || 0],
+      hp: Math.round(T.hp * sz.hp), speed: T.speed * sz.sp, mud: T.mud, r: T.r * sz.s, armor: ARMOR[up.armor || 0],
       gunDmg: gun.dmg, gunEvery: 1 / (gun.rate * T.fast), barrels: (up.gun || 0) === 3 ? 2 : 1,
       melee: melee && { dmg: melee.dmg, every: melee.every / T.fast, reach: melee.reach * sz.s },
     };
@@ -47,6 +47,27 @@
   // to be sent. It only uses + − × ÷ and square roots (no sin/cos), which every browser does exactly the same.
   const ARENA = 640, DT = 1 / 30, TIME_LIMIT = 90, GUN_RANGE = 320, BULLET_SPEED = 460;
   const SPAWNS = [[100, 100], [540, 540], [540, 100], [100, 540]];
+  // Maps. Each one is picked at random for a fight. Mud slows spiders down the most and 4-legged mechs the least;
+  // pillars block bullets, so sword mechs can sneak up; the cage is too small to run away in.
+  const MAPS = [
+    { name: 'Open Arena', icon: '🏟️' },
+    { name: 'Mud Pit', icon: '🟤', mud: [[320, 320, 150], [140, 480, 80], [500, 160, 80], [190, 190, 55], [450, 450, 55]] },
+    { name: 'Pillars', icon: '🗿', pillars: [[320, 320, 44], [205, 205, 28], [435, 435, 28], [435, 205, 28], [205, 435, 28], [320, 150, 22], [320, 490, 22], [150, 320, 22], [490, 320, 22]] },
+    { name: 'The Cage', icon: '⛓️', lo: 150, hi: 490 },
+    // Every mech starts in a small walled-in corner room with a door, and there's mud in the middle: tight spaces
+    // where 4-legged mechs do best.
+    { name: 'Close Corners', icon: '🧱', mud: [[320, 320, 120]], walls: [] },
+  ];
+  // Close Corners' walls: an L around each corner, built out of a row of round posts so they work like pillars.
+  for (const [cx, cy] of [[0, 0], [ARENA, 0], [0, ARENA], [ARENA, ARENA]]) {
+    const sx = cx ? -1 : 1, sy = cy ? -1 : 1, at = v => [cx + sx * v[0], cy + sy * v[1]];
+    MAPS[4].walls.push([at([190, 0]), at([190, 130])], [at([0, 190]), at([130, 190])]);
+  }
+  for (const map of MAPS) for (const [[x1, y1], [x2, y2]] of map.walls || []) {
+    const n = Math.round(Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) / 14);
+    for (let k = 0; k <= n; k++) (map.pillars = map.pillars || []).push([x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n, 13]);
+  }
+  const mapOf = fight => MAPS[(fight && fight.map) || 0] || MAPS[0];
 
   function rng(seed) {
     return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
@@ -54,15 +75,24 @@
   }
 
   function newSim(fight) {
-    const r = rng(fight.seed), mechs = toArr(fight.mechs);
+    const r = rng(fight.seed), mechs = toArr(fight.mechs), map = mapOf(fight), lo = map.lo || 0, hi = map.hi || ARENA;
     return {
-      r, time: 0, over: false, winner: -1, bullets: [], events: [],
+      r, time: 0, over: false, winner: -1, bullets: [], events: [], map, lo, hi,
       mechs: mechs.map((m, i) => {
-        const s = stats(m), [x, y] = SPAWNS[i];
+        const s = stats(m), x = lo + SPAWNS[i][0] * (hi - lo) / ARENA, y = lo + SPAWNS[i][1] * (hi - lo) / ARENA;
         return { i, name: m.name, slot: m.slot, b: cleanBuild(m), s, x, y, vx: 0, vy: 0, hp: s.hp, alive: true,
           ax: (ARENA / 2 - x), ay: (ARENA / 2 - y), gunCd: 0.5 + r() * 0.5, meleeCd: 0, strafe: r() < 0.5 ? 1 : -1, swingAt: -9, shotAt: -9 };
       }),
     };
+  }
+  // Keep a mech inside the walls and out of pillars.
+  function keepIn(sim, m) {
+    const r = m.s.r;
+    for (const [px, py, pr] of sim.map.pillars || []) {
+      const [nx, ny, d] = norm(m.x - px, m.y - py);
+      if (d < pr + r) { m.x = px + nx * (pr + r); m.y = py + ny * (pr + r); }
+    }
+    m.x = Math.max(sim.lo + r, Math.min(sim.hi - r, m.x)); m.y = Math.max(sim.lo + r, Math.min(sim.hi - r, m.y));
   }
   const norm = (x, y) => { const d = Math.sqrt(x * x + y * y) || 1; return [x / d, y / d, d]; };
 
@@ -94,10 +124,21 @@
       const side = wantClose ? 0.35 : 0.8;
       mx += -uy * m.strafe * side; my += ux * m.strafe * side;
       if (sim.r() < DT * 0.4) m.strafe = -m.strafe;
+      // Steer around pillars in the way.
+      for (const [px, py, pr] of sim.map.pillars || []) {
+        const [fx, fy] = norm(mx, my), qx = px - m.x, qy = py - m.y, t = qx * fx + qy * fy;
+        if (t <= 0 || t > 90) continue;
+        const sx = qx - fx * t, sy = qy - fy * t, off = Math.sqrt(sx * sx + sy * sy);
+        if (off > pr + s.r + 6) continue;
+        const [ax, ay] = off > 0.5 ? norm(-sx, -sy) : [-fy * m.strafe, fx * m.strafe];
+        mx = fx + ax * 1.5; my = fy + ay * 1.5;
+      }
       const [nx, ny] = norm(mx, my);
-      m.vx = nx * s.speed; m.vy = ny * s.speed;
-      m.x = Math.max(s.r, Math.min(ARENA - s.r, m.x + m.vx * DT));
-      m.y = Math.max(s.r, Math.min(ARENA - s.r, m.y + m.vy * DT));
+      let speed = s.speed;
+      for (const [cx, cy, cr] of sim.map.mud || []) { const dx = m.x - cx, dy = m.y - cy; if (dx * dx + dy * dy < cr * cr) { speed = s.speed * s.mud; break; } }
+      m.vx = nx * speed; m.vy = ny * speed;
+      m.x += m.vx * DT; m.y += m.vy * DT;
+      keepIn(sim, m);
       // Gun.
       m.gunCd -= DT;
       if (m.gunCd <= 0 && d < GUN_RANGE) {
@@ -128,7 +169,7 @@
           const [ox, oy, od] = norm(o.x - m.x, o.y - m.y);
           if (od - s.r - o.s.r < s.melee.reach && ox * ux + oy * uy > 0.3) {
             hurt(sim, o, s.melee.dmg, m.i);
-            o.x = Math.max(o.s.r, Math.min(ARENA - o.s.r, o.x + ox * 18)); o.y = Math.max(o.s.r, Math.min(ARENA - o.s.r, o.y + oy * 18));
+            o.x += ox * 18; o.y += oy * 18; keepIn(sim, o);
             sim.events.push({ k: 'clang', x: o.x - ox * o.s.r, y: o.y - oy * o.s.r });
           }
         }
@@ -139,7 +180,7 @@
       const p = sim.mechs[a], q = sim.mechs[b];
       if (!p.alive || !q.alive) continue;
       const [nx, ny, d] = norm(q.x - p.x, q.y - p.y), push = p.s.r + q.s.r - d;
-      if (push > 0) { p.x -= nx * push / 2; p.y -= ny * push / 2; q.x += nx * push / 2; q.y += ny * push / 2; }
+      if (push > 0) { p.x -= nx * push / 2; p.y -= ny * push / 2; q.x += nx * push / 2; q.y += ny * push / 2; keepIn(sim, p); keepIn(sim, q); }
     }
     // Bullets.
     sim.bullets = sim.bullets.filter(bu => {
@@ -149,7 +190,11 @@
         const dx = o.x - bu.x, dy = o.y - bu.y, rr = o.s.r + 3;
         if (dx * dx + dy * dy < rr * rr) { hurt(sim, o, bu.dmg, bu.o); sim.events.push({ k: 'hit', x: bu.x, y: bu.y }); return false; }
       }
-      return bu.left > 0 && bu.x > 0 && bu.y > 0 && bu.x < ARENA && bu.y < ARENA;
+      for (const [px, py, pr] of sim.map.pillars || []) {
+        const dx = bu.x - px, dy = bu.y - py;
+        if (dx * dx + dy * dy < pr * pr) { sim.events.push({ k: 'hit', x: bu.x, y: bu.y }); return false; }
+      }
+      return bu.left > 0 && bu.x > sim.lo && bu.y > sim.lo && bu.x < sim.hi && bu.y < sim.hi;
     });
     // The end: one mech left, or time's up (then the most health left wins).
     const left = sim.mechs.filter(m => m.alive);
@@ -164,7 +209,7 @@
 
   // ── Online rooms ─────────────────────────────────────────────────────────
   // Bump with the ?v= on the script in index.html whenever what goes in the room changes.
-  const VERSION = 3;
+  const VERSION = 4;
   const OUTDATED = 'That room is using a different version of Googly Mechs. Everyone needs to refresh the page.';
   const ROOMS = 'googlymechs/rooms';
 
@@ -311,7 +356,7 @@
     render();
   }
 
-  const newFight = mechs => ({ seed: Math.floor(Math.random() * 2 ** 31), startAt: now() + 3500, mechs });
+  const newFight = mechs => ({ seed: Math.floor(Math.random() * 2 ** 31), map: Math.floor(Math.random() * MAPS.length), startAt: now() + 3500, mechs });
   function startFight() {
     const st = room.st, teams = playerList(st);
     update({ phase: 'fight', fight: newFight(teams.map(p => ({ id: p.id, name: p.name, slot: p.slot, ...cleanBuild(st.builds[p.id]) }))) });
@@ -554,11 +599,7 @@
       while (sim.time + DT <= view.played && !sim.over && n++ < 40) { step(sim); handleEvents(); }
       if (n >= 40) view.played = sim.time;
     }
-    // Floor.
-    g2.fillStyle = '#2a2d3a'; g2.fillRect(0, 0, ARENA, ARENA);
-    g2.strokeStyle = 'rgba(255,255,255,.05)'; g2.lineWidth = 2;
-    for (let k = 40; k < ARENA; k += 40) { g2.beginPath(); g2.moveTo(k, 0); g2.lineTo(k, ARENA); g2.moveTo(0, k); g2.lineTo(ARENA, k); g2.stroke(); }
-    g2.strokeStyle = '#ffb84d'; g2.lineWidth = 6; g2.setLineDash([24, 16]); g2.strokeRect(3, 3, ARENA - 6, ARENA - 6); g2.setLineDash([]);
+    drawMap(sim.map, sim.lo, sim.hi, t);
     // Mechs, back to front; wrecks underneath.
     const order = sim.mechs.slice().sort((a, b) => (a.alive - b.alive) || (a.y - b.y));
     for (const m of order) {
@@ -602,6 +643,41 @@
       if ($('count').textContent !== txt) { $('count').textContent = txt; sfx.beep(startIn <= 0); }
     }
     if (sim.over && !view.shownOver) { view.shownOver = true; setTimeout(showOver, 1300); }
+  }
+
+  function drawMap(map, lo, hi, t) {
+    // Floor. Outside the cage is dark.
+    g2.fillStyle = '#15131f'; g2.fillRect(0, 0, ARENA, ARENA);
+    g2.fillStyle = '#2a2d3a'; g2.fillRect(lo, lo, hi - lo, hi - lo);
+    g2.strokeStyle = 'rgba(255,255,255,.05)'; g2.lineWidth = 2;
+    for (let k = lo + 40; k < hi; k += 40) { g2.beginPath(); g2.moveTo(k, lo); g2.lineTo(k, hi); g2.moveTo(lo, k); g2.lineTo(hi, k); g2.stroke(); }
+    // Mud: brown puddles with bubbles popping.
+    for (const [x, y, r] of map.mud || []) {
+      g2.fillStyle = '#5a3d22'; g2.beginPath(); g2.arc(x, y, r, 0, Math.PI * 2); g2.fill();
+      g2.fillStyle = '#6e4b2a'; g2.beginPath(); g2.arc(x - r * 0.15, y - r * 0.1, r * 0.7, 0, Math.PI * 2); g2.fill();
+      g2.fillStyle = 'rgba(160,120,80,.6)';
+      for (let k = 0; k < Math.round(r / 18); k++) {
+        const a = k * 2.4, d = r * (0.2 + 0.6 * ((k * 0.37) % 1)), ph = (t / 900 + k * 0.31) % 1;
+        g2.beginPath(); g2.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, 2 + ph * 5, 0, Math.PI * 2); g2.fill();
+      }
+    }
+    // Walls, then stone pillars.
+    for (const [[x1, y1], [x2, y2]] of map.walls || []) {
+      g2.lineCap = 'round';
+      g2.strokeStyle = '#3c3f4d'; g2.lineWidth = 30; g2.beginPath(); g2.moveTo(x1, y1 + 4); g2.lineTo(x2, y2 + 4); g2.stroke();
+      g2.strokeStyle = '#8a8fa3'; g2.lineWidth = 26; g2.beginPath(); g2.moveTo(x1, y1); g2.lineTo(x2, y2); g2.stroke();
+      g2.strokeStyle = '#a9aec0'; g2.lineWidth = 10; g2.beginPath(); g2.moveTo(x1, y1 - 3); g2.lineTo(x2, y2 - 3); g2.stroke();
+    }
+    if (!map.walls) for (const [x, y, r] of map.pillars || []) {
+      g2.fillStyle = 'rgba(0,0,0,.35)'; g2.beginPath(); g2.ellipse(x, y + r * 0.35, r * 1.05, r * 0.8, 0, 0, Math.PI * 2); g2.fill();
+      g2.fillStyle = '#7d8295'; g2.beginPath(); g2.arc(x, y, r, 0, Math.PI * 2); g2.fill();
+      g2.fillStyle = '#a3a8ba'; g2.beginPath(); g2.arc(x - r * 0.2, y - r * 0.25, r * 0.65, 0, Math.PI * 2); g2.fill();
+    }
+    // The edge: striped for an open arena, a glowing fence for the cage.
+    if (map.lo) {
+      g2.strokeStyle = `rgba(120,200,255,${0.6 + 0.3 * Math.sin(t / 120)})`; g2.lineWidth = 5; g2.strokeRect(lo - 2, lo - 2, hi - lo + 4, hi - lo + 4);
+      g2.strokeStyle = 'rgba(120,200,255,.25)'; g2.lineWidth = 14; g2.strokeRect(lo - 6, lo - 6, hi - lo + 12, hi - lo + 12);
+    } else { g2.strokeStyle = '#ffb84d'; g2.lineWidth = 6; g2.setLineDash([24, 16]); g2.strokeRect(3, 3, ARENA - 6, ARENA - 6); g2.setLineDash([]); }
   }
 
   function burst(x, y, n, c, sp, size) {
@@ -724,6 +800,7 @@
     }
     show('fight');
     fit();
+    $('mapname').textContent = `${view.sim.map.icon} ${view.sim.map.name}`;
   }
 
   // ── Menu and buttons ─────────────────────────────────────────────────────

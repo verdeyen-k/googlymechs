@@ -14,7 +14,15 @@ Each team builds a mech:
   - 📏 **Size:** bigger mechs have more health and longer swords, but they're slower and easier to hit.
   - 🎯 **Targeting:** the gun aims ahead of moving enemies, at where they'll be when the shot gets there, and shoots steadier. The higher the level, the better it leads them. Level 3 leads them perfectly.
 
-Then the mechs fight on their own. Sword mechs charge in, and gun mechs keep their distance and circle. The last mech standing wins. After 90 seconds, the mech with the most health left wins.
+Then the mechs fight on their own, on a random map:
+
+- 🏟️ **Open Arena:** lots of room to run around.
+- 🟤 **Mud Pit:** mud slows spiders down a lot, humanoids a bit, and 4-legged mechs hardly at all.
+- 🗿 **Pillars:** stone pillars block bullets, so sword mechs can sneak up.
+- ⛓️ **The Cage:** a small fenced-in arena with nowhere to run.
+- 🧱 **Close Corners:** every mech starts in a small walled-in corner room with a door, with mud in the middle. Best for 4-legged mechs.
+
+The fight itself: Sword mechs charge in, and gun mechs keep their distance and circle. The last mech standing wins. After 90 seconds, the mech with the most health left wins.
 
 ## Files
 
