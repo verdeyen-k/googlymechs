@@ -14,7 +14,7 @@ Each team builds a mech:
   - 📏 **Size:** bigger mechs have more health and longer swords, but they're slower and easier to hit.
   - 🎯 **Targeting:** the gun aims ahead of moving enemies, at where they'll be when the shot gets there, and shoots steadier. The higher the level, the better it leads them. Level 3 leads them perfectly.
 
-Then the mechs fight on their own, on a random map:
+The map is shown while you build, so you can build for it. Online, the host picks the map (or 🎲 for a random one). On one device, the first team picks it before anyone is ready. Changing the map un-readies everyone so they can change their builds. The maps:
 
 - 🏟️ **Open Arena:** lots of room to run around.
 - 🟤 **Mud Pit:** mud slows spiders down a lot, humanoids a bit, and 4-legged mechs hardly at all.

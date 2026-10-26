@@ -53,6 +53,13 @@
   .build-head { display: flex; align-items: center; gap: 10px; }
   .build-head h2 { flex: 1; display: flex; align-items: center; gap: 8px; }
   #bolts { font-size: 20px; font-weight: 700; background: rgba(0,0,0,.3); padding: 4px 12px; border-radius: 12px; white-space: nowrap; }
+  .map-card { display: flex; gap: 12px; align-items: center; background: var(--card); border-radius: 14px; padding: 8px; }
+  #map-thumb { width: 64px; height: 64px; border-radius: 8px; flex: none; }
+  .map-info { display: flex; flex-direction: column; gap: 2px; }
+  .map-info b { font-size: 18px; }
+  .map-info small { font-size: 14px; line-height: 1.25; }
+  .map-pick { flex-wrap: wrap; }
+  .map-pick button { font-size: 20px; min-width: 44px; padding: 6px 8px; }
   #preview { width: 100%; height: 200px; display: block; border-radius: 16px; background: radial-gradient(circle at 50% 70%, #3d3a5c, #24203f); }
   .templates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .templates button { padding: 8px 4px; border-radius: 14px; border: 2px solid var(--line); background: var(--card); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -132,6 +139,11 @@
     <h2 id="build-title"></h2>
     <span id="bolts"></span>
   </div>
+  <div class="map-card">
+    <canvas id="map-thumb" aria-hidden="true"></canvas>
+    <div class="map-info"><b id="map-name"></b><small id="map-desc"></small><small class="muted" id="map-note"></small></div>
+  </div>
+  <div class="seg map-pick" id="map-pick"></div>
   <canvas id="preview" aria-label="Your mech"></canvas>
   <div class="templates" id="templates"></div>
   <div class="ups" id="ups"></div>
@@ -173,6 +185,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="mechs.js?v=4"></script>
+<script src="mechs.js?v=5"></script>
 </body>
 </html>

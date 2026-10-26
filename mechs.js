@@ -50,13 +50,13 @@
   // Maps. Each one is picked at random for a fight. Mud slows spiders down the most and 4-legged mechs the least;
   // pillars block bullets, so sword mechs can sneak up; the cage is too small to run away in.
   const MAPS = [
-    { name: 'Open Arena', icon: '🏟️' },
-    { name: 'Mud Pit', icon: '🟤', mud: [[320, 320, 150], [140, 480, 80], [500, 160, 80], [190, 190, 55], [450, 450, 55]] },
-    { name: 'Pillars', icon: '🗿', pillars: [[320, 320, 44], [205, 205, 28], [435, 435, 28], [435, 205, 28], [205, 435, 28], [320, 150, 22], [320, 490, 22], [150, 320, 22], [490, 320, 22]] },
-    { name: 'The Cage', icon: '⛓️', lo: 150, hi: 490 },
+    { name: 'Open Arena', icon: '🏟️', desc: 'Lots of room to run around.' },
+    { name: 'Mud Pit', icon: '🟤', desc: 'Mud slows spiders a lot, humanoids a bit, 4-legged hardly at all.', mud: [[320, 320, 150], [140, 480, 80], [500, 160, 80], [190, 190, 55], [450, 450, 55]] },
+    { name: 'Pillars', icon: '🗿', desc: 'Pillars block bullets, so swords can sneak up.', pillars: [[320, 320, 44], [205, 205, 28], [435, 435, 28], [435, 205, 28], [205, 435, 28], [320, 150, 22], [320, 490, 22], [150, 320, 22], [490, 320, 22]] },
+    { name: 'The Cage', icon: '⛓️', desc: 'A small cage with nowhere to run.', lo: 150, hi: 490 },
     // Every mech starts in a small walled-in corner room with a door, and there's mud in the middle: tight spaces
     // where 4-legged mechs do best.
-    { name: 'Close Corners', icon: '🧱', mud: [[320, 320, 120]], walls: [] },
+    { name: 'Close Corners', icon: '🧱', desc: 'Walled-in corner rooms and mud in the middle. Good for 4-legged.', mud: [[320, 320, 120]], walls: [] },
   ];
   // Close Corners' walls: an L around each corner, built out of a row of round posts so they work like pillars.
   for (const [cx, cy] of [[0, 0], [ARENA, 0], [0, ARENA], [ARENA, ARENA]]) {
@@ -209,7 +209,7 @@
 
   // ── Online rooms ─────────────────────────────────────────────────────────
   // Bump with the ?v= on the script in index.html whenever what goes in the room changes.
-  const VERSION = 4;
+  const VERSION = 5;
   const OUTDATED = 'That room is using a different version of Googly Mechs. Everyone needs to refresh the page.';
   const ROOMS = 'googlymechs/rooms';
 
@@ -273,7 +273,7 @@
         ref = db.ref(`${ROOMS}/${code}`);
         if (!(await ref.get()).exists()) break;
       }
-      await ref.set({ host: myId, v: VERSION, created: firebase.database.ServerValue.TIMESTAMP, phase: 'lobby',
+      await ref.set({ host: myId, v: VERSION, created: firebase.database.ServerValue.TIMESTAMP, phase: 'lobby', map: randomMap(),
         players: { [myId]: { name, slot: 0 } } });
       ref.onDisconnect().remove();
       await enterRoom(code, ref);
@@ -356,7 +356,9 @@
     render();
   }
 
-  const newFight = mechs => ({ seed: Math.floor(Math.random() * 2 ** 31), map: Math.floor(Math.random() * MAPS.length), startAt: now() + 3500, mechs });
+  const randomMap = () => Math.floor(Math.random() * MAPS.length);
+  const roomMap = () => Math.max(0, Math.min(MAPS.length - 1, Number(room.st.map) || 0));
+  const newFight = mechs => ({ seed: Math.floor(Math.random() * 2 ** 31), map: roomMap(), startAt: now() + 3500, mechs });
   function startFight() {
     const st = room.st, teams = playerList(st);
     update({ phase: 'fight', fight: newFight(teams.map(p => ({ id: p.id, name: p.name, slot: p.slot, ...cleanBuild(st.builds[p.id]) }))) });
@@ -370,7 +372,7 @@
     leaveRoom();
     const players = {};
     for (let slot = 0; slot < n; slot++) players['p' + slot] = { name: COLOR_NAMES[slot], slot };
-    room = { local: true, st: { phase: 'build', players, builds: {}, ready: {} } };
+    room = { local: true, st: { phase: 'build', players, builds: {}, ready: {}, map: randomMap() } };
     render();
   }
 
@@ -394,6 +396,13 @@
       draft = cleanBuild(saved);
     }
     const ready = !!(st.ready || {})[who.id], left = BUDGET - spent(draft.up);
+    const map = MAPS[roomMap()], canPick = mapPickable();
+    $('map-name').textContent = `${map.icon} ${map.name}`;
+    $('map-desc').textContent = map.desc;
+    $('map-pick').hidden = !canPick;
+    $('map-pick').innerHTML = canPick ? MAPS.map((m, i) => `<button type="button" data-m="${i}" class="${i === roomMap() ? 'on' : ''}" aria-label="${m.name}">${m.icon}</button>`).join('') + '<button type="button" data-m="random" aria-label="Random map">🎲</button>' : '';
+    $('map-note').textContent = canPick ? '' : room.local ? '' : 'The host picks the map.';
+    drawThumb(map);
     $('build-title').innerHTML = `<span class="sw" style="background:${COLORS[who.slot]}"></span>${room.local ? esc(who.name) + ' team: build!' : 'Build your mech'}`;
     $('bolts').textContent = `🔩 ${left} left`;
     $('templates').innerHTML = TEMPLATE_KEYS.map(k => `<button type="button" data-t="${k}" class="${draft.t === k ? 'on' : ''}" ${ready ? 'disabled' : ''}>
@@ -412,6 +421,24 @@
     $('ready').textContent = ready ? 'Change my mech' : 'Ready!';
     $('build-wait').textContent = room.local ? (left > 0 ? `You still have ${left} 🔩` : '')
       : ready ? (teams.length < 2 ? 'Waiting for another team to join…' : `Waiting for ${waiting.map(p => p.name).join(', ')}…`) : '';
+  }
+
+  // Online the host picks the map; on one device, whoever builds first does, before anyone is ready.
+  const mapPickable = () => room.local ? !Object.keys(room.st.ready || {}).length : isHost();
+  $('map-pick').addEventListener('click', e => {
+    const b = e.target.closest('button[data-m]'); if (!b || !mapPickable()) return;
+    let m = b.dataset.m === 'random' ? randomMap() : Number(b.dataset.m);
+    if (b.dataset.m === 'random' && MAPS.length > 1) while (m === roomMap()) m = randomMap();
+    sfx.click();
+    // A new map can change what's a good build, so everyone gets to change theirs.
+    update({ map: m, ready: null });
+  });
+  const thumb = $('map-thumb'), tg = thumb.getContext('2d');
+  function drawThumb(map) {
+    const size = thumb.clientWidth || 64, dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (thumb.width !== Math.round(size * dpr)) thumb.width = thumb.height = Math.round(size * dpr);
+    tg.setTransform(dpr * size / ARENA, 0, 0, dpr * size / ARENA, 0, 0);
+    drawMap(map, map.lo || 0, map.hi || ARENA, 0, tg);
   }
 
   $('templates').addEventListener('click', e => {
@@ -645,39 +672,39 @@
     if (sim.over && !view.shownOver) { view.shownOver = true; setTimeout(showOver, 1300); }
   }
 
-  function drawMap(map, lo, hi, t) {
+  function drawMap(map, lo, hi, t, g = g2) {
     // Floor. Outside the cage is dark.
-    g2.fillStyle = '#15131f'; g2.fillRect(0, 0, ARENA, ARENA);
-    g2.fillStyle = '#2a2d3a'; g2.fillRect(lo, lo, hi - lo, hi - lo);
-    g2.strokeStyle = 'rgba(255,255,255,.05)'; g2.lineWidth = 2;
-    for (let k = lo + 40; k < hi; k += 40) { g2.beginPath(); g2.moveTo(k, lo); g2.lineTo(k, hi); g2.moveTo(lo, k); g2.lineTo(hi, k); g2.stroke(); }
+    g.fillStyle = '#15131f'; g.fillRect(0, 0, ARENA, ARENA);
+    g.fillStyle = '#2a2d3a'; g.fillRect(lo, lo, hi - lo, hi - lo);
+    g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 2;
+    for (let k = lo + 40; k < hi; k += 40) { g.beginPath(); g.moveTo(k, lo); g.lineTo(k, hi); g.moveTo(lo, k); g.lineTo(hi, k); g.stroke(); }
     // Mud: brown puddles with bubbles popping.
     for (const [x, y, r] of map.mud || []) {
-      g2.fillStyle = '#5a3d22'; g2.beginPath(); g2.arc(x, y, r, 0, Math.PI * 2); g2.fill();
-      g2.fillStyle = '#6e4b2a'; g2.beginPath(); g2.arc(x - r * 0.15, y - r * 0.1, r * 0.7, 0, Math.PI * 2); g2.fill();
-      g2.fillStyle = 'rgba(160,120,80,.6)';
+      g.fillStyle = '#5a3d22'; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#6e4b2a'; g.beginPath(); g.arc(x - r * 0.15, y - r * 0.1, r * 0.7, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(160,120,80,.6)';
       for (let k = 0; k < Math.round(r / 18); k++) {
         const a = k * 2.4, d = r * (0.2 + 0.6 * ((k * 0.37) % 1)), ph = (t / 900 + k * 0.31) % 1;
-        g2.beginPath(); g2.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, 2 + ph * 5, 0, Math.PI * 2); g2.fill();
+        g.beginPath(); g.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, 2 + ph * 5, 0, Math.PI * 2); g.fill();
       }
     }
     // Walls, then stone pillars.
     for (const [[x1, y1], [x2, y2]] of map.walls || []) {
-      g2.lineCap = 'round';
-      g2.strokeStyle = '#3c3f4d'; g2.lineWidth = 30; g2.beginPath(); g2.moveTo(x1, y1 + 4); g2.lineTo(x2, y2 + 4); g2.stroke();
-      g2.strokeStyle = '#8a8fa3'; g2.lineWidth = 26; g2.beginPath(); g2.moveTo(x1, y1); g2.lineTo(x2, y2); g2.stroke();
-      g2.strokeStyle = '#a9aec0'; g2.lineWidth = 10; g2.beginPath(); g2.moveTo(x1, y1 - 3); g2.lineTo(x2, y2 - 3); g2.stroke();
+      g.lineCap = 'round';
+      g.strokeStyle = '#3c3f4d'; g.lineWidth = 30; g.beginPath(); g.moveTo(x1, y1 + 4); g.lineTo(x2, y2 + 4); g.stroke();
+      g.strokeStyle = '#8a8fa3'; g.lineWidth = 26; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+      g.strokeStyle = '#a9aec0'; g.lineWidth = 10; g.beginPath(); g.moveTo(x1, y1 - 3); g.lineTo(x2, y2 - 3); g.stroke();
     }
     if (!map.walls) for (const [x, y, r] of map.pillars || []) {
-      g2.fillStyle = 'rgba(0,0,0,.35)'; g2.beginPath(); g2.ellipse(x, y + r * 0.35, r * 1.05, r * 0.8, 0, 0, Math.PI * 2); g2.fill();
-      g2.fillStyle = '#7d8295'; g2.beginPath(); g2.arc(x, y, r, 0, Math.PI * 2); g2.fill();
-      g2.fillStyle = '#a3a8ba'; g2.beginPath(); g2.arc(x - r * 0.2, y - r * 0.25, r * 0.65, 0, Math.PI * 2); g2.fill();
+      g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(x, y + r * 0.35, r * 1.05, r * 0.8, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#7d8295'; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#a3a8ba'; g.beginPath(); g.arc(x - r * 0.2, y - r * 0.25, r * 0.65, 0, Math.PI * 2); g.fill();
     }
     // The edge: striped for an open arena, a glowing fence for the cage.
     if (map.lo) {
-      g2.strokeStyle = `rgba(120,200,255,${0.6 + 0.3 * Math.sin(t / 120)})`; g2.lineWidth = 5; g2.strokeRect(lo - 2, lo - 2, hi - lo + 4, hi - lo + 4);
-      g2.strokeStyle = 'rgba(120,200,255,.25)'; g2.lineWidth = 14; g2.strokeRect(lo - 6, lo - 6, hi - lo + 12, hi - lo + 12);
-    } else { g2.strokeStyle = '#ffb84d'; g2.lineWidth = 6; g2.setLineDash([24, 16]); g2.strokeRect(3, 3, ARENA - 6, ARENA - 6); g2.setLineDash([]); }
+      g.strokeStyle = `rgba(120,200,255,${0.6 + 0.3 * Math.sin(t / 120)})`; g.lineWidth = 5; g.strokeRect(lo - 2, lo - 2, hi - lo + 4, hi - lo + 4);
+      g.strokeStyle = 'rgba(120,200,255,.25)'; g.lineWidth = 14; g.strokeRect(lo - 6, lo - 6, hi - lo + 12, hi - lo + 12);
+    } else { g.strokeStyle = '#ffb84d'; g.lineWidth = 6; g.setLineDash([24, 16]); g.strokeRect(3, 3, ARENA - 6, ARENA - 6); g.setLineDash([]); }
   }
 
   function burst(x, y, n, c, sp, size) {
