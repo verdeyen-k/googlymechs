@@ -8,7 +8,7 @@
   const spent = up => UPGRADES.reduce((s, u) => s + (up[u.k] || 0) * ((up[u.k] || 0) + 1) / 2, 0);
 
   const TEMPLATES = {
-    spider:   { name: 'Spider',   icon: '🕷️', hp: 170, speed: 115, r: 16, fast: 1,   desc: 'Fast and small, but fragile' },
+    spider:   { name: 'Spider',   icon: '🕷️', hp: 155, speed: 105, r: 17, fast: 1,   desc: 'Fast and small, but fragile' },
     humanoid: { name: 'Humanoid', icon: '🤖', hp: 210, speed: 75,  r: 21, fast: 1.2, desc: 'Its arms shoot and swing 20% faster' },
     fourleg:  { name: '4-Legged', icon: '🐕', hp: 270, speed: 58,  r: 23, fast: 1,   desc: 'Slow, but very tough' },
   };
@@ -164,7 +164,7 @@
 
   // ── Online rooms ─────────────────────────────────────────────────────────
   // Bump with the ?v= on the script in index.html whenever what goes in the room changes.
-  const VERSION = 2;
+  const VERSION = 3;
   const OUTDATED = 'That room is using a different version of Googly Mechs. Everyone needs to refresh the page.';
   const ROOMS = 'googlymechs/rooms';
 
