@@ -7,11 +7,12 @@ Build a robot mech with googly eyes, then watch it fight all by itself. 2 to 4 t
 Each team builds a mech:
 
 - **Pick a body:** 🕷️ Spider (fast and small, but fragile), 🤖 Humanoid (its arms shoot and swing 20% faster), or 🐕 4-Legged (slow, but very tough).
-- **Spend 10 bolts on power-ups,** each with 3 levels. Level 1 costs 1 bolt, level 2 costs 2 more, level 3 costs 3 more.
+- **Spend 12 bolts on power-ups,** each with 3 levels. Level 1 costs 1 bolt, level 2 costs 2 more, level 3 costs 3 more.
   - 🛡️ **Armor:** take 20%, 35% or 55% less damage.
   - 🔫 **Gun:** every mech has a little blaster. Upgrades make it faster and stronger, and level 3 has two barrels.
   - 🗡️ **Melee:** a giant sword that hits hard up close and knocks enemies back.
   - 📏 **Size:** bigger mechs have more health and longer swords, but they're slower and easier to hit.
+  - 🎯 **Targeting:** the gun aims ahead of moving enemies, at where they'll be when the shot gets there, and shoots steadier. The higher the level, the better it leads them. Level 3 leads them perfectly.
 
 Then the mechs fight on their own. Sword mechs charge in, and gun mechs keep their distance and circle. The last mech standing wins. After 90 seconds, the mech with the most health left wins.
 

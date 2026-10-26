@@ -2,7 +2,7 @@
 // on their own in an arena. Last mech standing wins.
 (() => {
   // ── Parts ────────────────────────────────────────────────────────────────
-  const BUDGET = 10;
+  const BUDGET = 12;
   const MAX_LEVEL = 3;
   // Going up to level L costs L bolts, so level 1 costs 1, level 2 costs 3 in all, level 3 costs 6 in all.
   const spent = up => UPGRADES.reduce((s, u) => s + (up[u.k] || 0) * ((up[u.k] || 0) + 1) / 2, 0);
@@ -18,10 +18,14 @@
     { k: 'gun',   icon: '🔫', name: 'Gun',    lv: ['Little blaster', 'Faster, stronger gun', 'Rapid-fire gun', 'Double-barrel blaster'] },
     { k: 'melee', icon: '🗡️', name: 'Melee',  lv: ['No sword', 'Giant sword', 'Bigger, faster sword', 'Enormous sword'] },
     { k: 'size',  icon: '📏', name: 'Size',   lv: ['Normal size', 'Bigger: more health, a bit slower', 'Huge', 'Gigantic'] },
+    { k: 'aim',   icon: '🎯', name: 'Targeting', lv: ['Shoots where enemies are', 'Aims a bit ahead of moving enemies', 'Aims well ahead, steadier shots', 'Perfect lead, dead-steady shots'] },
   ];
   const ARMOR = [0, 0.2, 0.35, 0.55];
   const GUN = [{ dmg: 4, rate: 1.5 }, { dmg: 6, rate: 2 }, { dmg: 7, rate: 2.8 }, { dmg: 6, rate: 2.5 }];
-  const MELEE = [null, { dmg: 26, every: 1.3, reach: 30 }, { dmg: 36, every: 1.1, reach: 40 }, { dmg: 50, every: 0.9, reach: 52 }];
+  // How far ahead of a moving enemy the gun aims: 0 = right at them, 1 = exactly where they'll be when the shot gets there.
+  const TARGETING = [0, 0.4, 0.75, 1];
+  const SPREAD = [0.16, 0.1, 0.06, 0.03];  // and how wobbly the shots are
+  const MELEE = [null, { dmg: 26, every: 1.3, reach: 30 }, { dmg: 36, every: 1.1, reach: 40 }, { dmg: 44, every: 0.9, reach: 52 }];
   const SIZE = [{ s: 1, hp: 1, sp: 1 }, { s: 1.2, hp: 1.35, sp: 0.95 }, { s: 1.4, hp: 1.75, sp: 0.9 }, { s: 1.6, hp: 2.2, sp: 0.85 }];
   const COLORS = ['#ff6b6b', '#4dabf7', '#51cf66', '#ffd43b'];
   const COLOR_NAMES = ['Red', 'Blue', 'Green', 'Yellow'];
@@ -98,10 +102,20 @@
       m.gunCd -= DT;
       if (m.gunCd <= 0 && d < GUN_RANGE) {
         m.gunCd = s.gunEvery; m.shotAt = sim.time;
+        // Targeting: aim ahead of a moving enemy, at where the shot and the enemy would meet.
+        let gx = ux, gy = uy;
+        const lead = TARGETING[m.b.up.aim || 0];
+        if (lead) {
+          const px = tgt.x - m.x, py = tgt.y - m.y;
+          const a = tgt.vx * tgt.vx + tgt.vy * tgt.vy - BULLET_SPEED * BULLET_SPEED, b = 2 * (px * tgt.vx + py * tgt.vy), c = px * px + py * py;
+          const disc = b * b - 4 * a * c;
+          if (disc >= 0) { const t = (-b - Math.sqrt(disc)) / (2 * a); if (t > 0) [gx, gy] = norm(px + tgt.vx * t * lead, py + tgt.vy * t * lead); }
+        }
+        m.gx = gx; m.gy = gy;
         for (let k = 0; k < s.barrels; k++) {
-          const off = s.barrels === 2 ? (k ? 1 : -1) * s.r * 0.35 : 0, spread = (sim.r() - 0.5) * 0.16;
-          const [bx, by] = norm(ux - uy * spread, uy + ux * spread);
-          sim.bullets.push({ o: m.i, x: m.x + ux * s.r - uy * off, y: m.y + uy * s.r + ux * off, vx: bx * BULLET_SPEED, vy: by * BULLET_SPEED, left: GUN_RANGE, dmg: s.gunDmg });
+          const off = s.barrels === 2 ? (k ? 1 : -1) * s.r * 0.35 : 0, spread = (sim.r() - 0.5) * SPREAD[m.b.up.aim || 0];
+          const [bx, by] = norm(gx - gy * spread, gy + gx * spread);
+          sim.bullets.push({ o: m.i, x: m.x + gx * s.r - gy * off, y: m.y + gy * s.r + gx * off, vx: bx * BULLET_SPEED, vy: by * BULLET_SPEED, left: GUN_RANGE, dmg: s.gunDmg });
         }
         sim.events.push({ k: 'shot', i: m.i });
       }
@@ -150,7 +164,7 @@
 
   // ── Online rooms ─────────────────────────────────────────────────────────
   // Bump with the ?v= on the script in index.html whenever what goes in the room changes.
-  const VERSION = 1;
+  const VERSION = 2;
   const OUTDATED = 'That room is using a different version of Googly Mechs. Everyone needs to refresh the page.';
   const ROOMS = 'googlymechs/rooms';
 
@@ -457,8 +471,15 @@
 
     if (!dead) {
       // Gun, pointing at the target. Bigger and more barrels with each level.
-      const gl = up.gun || 0, len = r * (0.75 + 0.22 * gl), wid = r * (0.16 + 0.05 * gl);
-      g.save(); g.rotate(aimAng);
+      const gl = up.gun || 0, len = r * (0.75 + 0.22 * gl), wid = r * (0.16 + 0.05 * gl), tl = up.aim || 0;
+      g.save(); g.rotate(o.gunAim ? Math.atan2(o.gunAim[1], o.gunAim[0]) : aimAng);
+      // Targeting: a laser sight, longer and brighter with each level.
+      if (tl) {
+        g.strokeStyle = `rgba(255,60,60,${0.25 + 0.15 * tl})`; g.lineWidth = Math.max(1, r * 0.05);
+        g.beginPath(); g.moveTo(r * 0.2 + len, 0); g.lineTo(r * 0.2 + len + r * (1.2 + 1.2 * tl), 0); g.stroke();
+        g.fillStyle = '#ff3c3c'; g.beginPath(); g.arc(r * 0.2 + len + r * (1.2 + 1.2 * tl), 0, Math.max(1.5, r * 0.07), 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#2b2e38'; g.fillRect(r * 0.4, -wid / 2 - r * 0.14, r * 0.35, r * 0.14);
+      }
       for (const off of gl === 3 ? [-wid * 0.8, wid * 0.8] : [0]) {
         g.fillStyle = '#4a4f5c'; g.fillRect(r * 0.2, off - wid / 2, len, wid);
         g.fillStyle = '#2b2e38'; g.fillRect(r * 0.2 + len - wid * 0.6, off - wid / 2 - 1, wid * 0.6, wid + 2);
@@ -548,7 +569,7 @@
       const swing = (sim.time - m.swingAt) / 0.3, flash = sim.time - m.shotAt < 0.06;
       const hurt = m.hurtAt && sim.time - m.hurtAt < 0.1;
       g2.save(); g2.translate(m.x, m.y); g2.scale(VIS, VIS);
-      drawMech(g2, 0, 0, m.b, hurt ? '#fff' : COLORS[m.slot], { walk: view.walk[m.i], aim: [m.ax, m.ay], look: e, swing: swing < 1 ? swing : -1, flash, dead: !m.alive });
+      drawMech(g2, 0, 0, m.b, hurt ? '#fff' : COLORS[m.slot], { walk: view.walk[m.i], aim: [m.ax, m.ay], gunAim: m.gx != null ? [m.gx, m.gy] : null, look: e, swing: swing < 1 ? swing : -1, flash, dead: !m.alive });
       g2.restore();
     }
     // Health bars and names on top of everything.
