@@ -19,6 +19,7 @@
     { k: 'melee', icon: '🗡️', name: 'Melee',  lv: ['No sword', 'Giant sword', 'Bigger, faster sword', 'Enormous sword'] },
     { k: 'size',  icon: '📏', name: 'Size',   lv: ['Normal size', 'Bigger: more health, a bit slower', 'Huge', 'Gigantic'] },
     { k: 'aim',   icon: '🎯', name: 'Targeting', lv: ['Shoots where enemies are', 'Aims a bit ahead of moving enemies', 'Aims well ahead, steadier shots', 'Perfect lead, dead-steady shots'] },
+    { k: 'brain', icon: '🧠', name: 'Intelligence', lv: ['Goes after the closest enemy', 'Picks on hurt enemies, runs from swords, steps out from behind pillars', 'Also dodges bullets', 'Dodges like a ninja, zigzags at guns'] },
   ];
   const ARMOR = [0, 0.2, 0.35, 0.55];
   const GUN = [{ dmg: 4, rate: 1.5 }, { dmg: 6, rate: 2 }, { dmg: 7, rate: 2.8 }, { dmg: 6, rate: 2.5 }];
@@ -94,6 +95,12 @@
     }
     m.x = Math.max(sim.lo + r, Math.min(sim.hi - r, m.x)); m.y = Math.max(sim.lo + r, Math.min(sim.hi - r, m.y));
   }
+  // Is there a pillar between two mechs?
+  const blocked = (sim, a, b) => (sim.map.pillars || []).some(([px, py, pr]) => {
+    const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy, t = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / (l || 1)));
+    const ex = a.x + dx * t - px, ey = a.y + dy * t - py;
+    return ex * ex + ey * ey < pr * pr;
+  });
   const norm = (x, y) => { const d = Math.sqrt(x * x + y * y) || 1; return [x / d, y / d, d]; };
 
   function hurt(sim, m, amount, by) {
@@ -109,23 +116,50 @@
     const alive = sim.mechs.filter(m => m.alive);
     for (const m of alive) {
       if (!m.alive) continue;
-      // Go after the nearest enemy.
+      // Go after the nearest enemy. Smarter mechs go after hurt enemies, to finish them off.
+      const iq = m.b.up.brain || 0;
       let tgt = null, best = Infinity;
-      for (const o of sim.mechs) if (o !== m && o.alive) { const dx = o.x - m.x, dy = o.y - m.y, d = dx * dx + dy * dy; if (d < best) { best = d; tgt = o; } }
+      for (const o of sim.mechs) if (o !== m && o.alive) {
+        const dx = o.x - m.x, dy = o.y - m.y, d = Math.sqrt(dx * dx + dy * dy), score = iq ? d * (0.4 + 0.6 * o.hp / o.s.hp) : d;
+        if (score < best) { best = score; tgt = o; }
+      }
       if (!tgt) continue;
       const [ux, uy, d] = norm(tgt.x - m.x, tgt.y - m.y);
       m.ax = ux; m.ay = uy;
-      // Sword mechs charge in; gun mechs keep their distance and circle.
-      const s = m.s, wantClose = s.melee && (m.b.up.melee || 0) >= (m.b.up.gun || 0);
-      const want = wantClose ? 0 : 200, gap = d - s.r - tgt.s.r;
+      // Sword mechs charge in; gun mechs keep their distance and circle. Smart gun mechs stay well out of a sword's reach.
+      const swordy = o => o.s.melee && (o.b.up.melee || 0) >= (o.b.up.gun || 0);
+      const s = m.s, wantClose = swordy(m), cover = iq && !wantClose && blocked(sim, m, tgt);
+      const want = wantClose ? 0 : iq && swordy(tgt) ? Math.max(200, tgt.s.melee.reach + tgt.s.r + s.r + 150) : 200, gap = d - s.r - tgt.s.r;
       let mx = 0, my = 0;
       if (wantClose ? gap > 4 : d > want + 30) { mx += ux; my += uy; }
       else if (!wantClose && d < want - 30) { mx -= ux; my -= uy; }
-      const side = wantClose ? 0.35 : 0.8;
+      // Smart gun mechs running from a sword don't back themselves into a wall or a corner.
+      if (iq && !wantClose && swordy(tgt)) {
+        const mid = (sim.lo + sim.hi) / 2, edge = Math.min(m.x - sim.lo, sim.hi - m.x, m.y - sim.lo, sim.hi - m.y);
+        if (edge < 100) { const [cx, cy] = norm(mid - m.x, mid - m.y); mx += cx * (100 - edge) / 60; my += cy * (100 - edge) / 60; }
+      }
+      // The smartest sword mechs zigzag hard when charging at a gun, so it's harder to hit them.
+      // And a smart gun mech with a pillar in the way sidesteps to get a clear shot.
+      const zigzag = iq >= 3 && wantClose && gap > 40, side = zigzag || cover ? 1.2 : wantClose ? 0.35 : 0.8;
       mx += -uy * m.strafe * side; my += ux * m.strafe * side;
-      if (sim.r() < DT * 0.4) m.strafe = -m.strafe;
-      // Steer around pillars in the way.
-      for (const [px, py, pr] of sim.map.pillars || []) {
+      if (sim.r() < DT * (zigzag ? 1.5 : 0.4)) m.strafe = -m.strafe;
+      // Smart mechs sidestep bullets that are about to hit them.
+      if (iq >= 2) for (const bu of sim.bullets) {
+        if (bu.o === m.i) continue;
+        const px = m.x - bu.x, py = m.y - bu.y, t = (px * bu.vx + py * bu.vy) / (BULLET_SPEED * BULLET_SPEED);
+        if (t <= 0 || t > (iq >= 3 ? 0.6 : 0.3)) continue;
+        const cx = px - bu.vx * t, cy = py - bu.vy * t, miss = Math.sqrt(cx * cx + cy * cy);
+        if (miss > s.r + (iq >= 3 ? 14 : 8)) continue;
+        const [dx, dy] = miss > 0.5 ? norm(cx, cy) : norm(-bu.vy * m.strafe, bu.vx * m.strafe);
+        mx += dx * (iq >= 3 ? 3 : 2); my += dy * (iq >= 3 ? 3 : 2);
+      }
+      // Steer around pillars in the way, and smart gun mechs that get slowed by mud steer around that too.
+      const avoid = (sim.map.pillars || []).slice();
+      if (iq && !wantClose && s.mud < 0.8) for (const [cx, cy, cr] of sim.map.mud || []) {
+        const dx = m.x - cx, dy = m.y - cy;
+        if (dx * dx + dy * dy > cr * cr) avoid.push([cx, cy, cr - s.r]);
+      }
+      for (const [px, py, pr] of avoid) {
         const [fx, fy] = norm(mx, my), qx = px - m.x, qy = py - m.y, t = qx * fx + qy * fy;
         if (t <= 0 || t > 90) continue;
         const sx = qx - fx * t, sy = qy - fy * t, off = Math.sqrt(sx * sx + sy * sy);
@@ -209,7 +243,7 @@
 
   // ── Online rooms ─────────────────────────────────────────────────────────
   // Bump with the ?v= on the script in index.html whenever what goes in the room changes.
-  const VERSION = 5;
+  const VERSION = 6;
   const OUTDATED = 'That room is using a different version of Googly Mechs. Everyone needs to refresh the page.';
   const ROOMS = 'googlymechs/rooms';
 
@@ -527,6 +561,19 @@
       eyes = [[-r * 0.2, -r * 0.95, r * 0.22], [r * 0.2, -r * 0.95, r * 0.22]];
     }
 
+    // Intelligence: a brain in a glass dome on top, bigger with each level.
+    const bl = up.brain || 0;
+    if (bl) {
+      const top = Math.min(...eyes.map(([, ey, er]) => ey - er)), bx = eyes.reduce((t, [ex]) => t + ex, 0) / eyes.length;
+      const br = r * (0.2 + 0.07 * bl), by = top - br * 0.55;
+      g.fillStyle = dead ? '#8a7d85' : '#ff9ecb'; g.beginPath(); g.arc(bx, by, br, Math.PI, 0); g.closePath(); g.fill();
+      g.strokeStyle = dead ? '#5d545a' : '#d9578f'; g.lineWidth = Math.max(1, br * 0.12);
+      g.beginPath(); g.moveTo(bx, by); g.lineTo(bx, by - br * 0.85);
+      g.moveTo(bx - br * 0.6, by - br * 0.15); g.quadraticCurveTo(bx - br * 0.35, by - br * 0.7, bx - br * 0.15, by - br * 0.3);
+      g.moveTo(bx + br * 0.6, by - br * 0.15); g.quadraticCurveTo(bx + br * 0.35, by - br * 0.7, bx + br * 0.15, by - br * 0.3); g.stroke();
+      g.strokeStyle = 'rgba(200,235,255,.8)'; g.lineWidth = Math.max(1, r * 0.05);
+      g.beginPath(); g.arc(bx, by, br * 1.2, Math.PI, 0); g.stroke();
+    }
     // Googly eyes: big whites, and pupils that slosh around. Dead mechs get X eyes.
     for (const [ex, ey, er] of eyes) {
       g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = Math.max(1, er * 0.14);

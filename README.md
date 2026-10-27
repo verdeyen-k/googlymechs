@@ -13,6 +13,7 @@ Each team builds a mech:
   - 🗡️ **Melee:** a giant sword that hits hard up close and knocks enemies back.
   - 📏 **Size:** bigger mechs have more health and longer swords, but they're slower and easier to hit.
   - 🎯 **Targeting:** the gun aims ahead of moving enemies, at where they'll be when the shot gets there, and shoots steadier. The higher the level, the better it leads them. Level 3 leads them perfectly.
+  - 🧠 **Intelligence:** the mech fights smarter. Level 1 picks on hurt enemies, and gun mechs run from swords (without getting stuck in corners) and step out from behind pillars. Level 2 also dodges bullets. Level 3 dodges like a ninja, and sword mechs zigzag when charging at a gun.
 
 The map is shown while you build, so you can build for it. Online, the host picks the map (or 🎲 for a random one). On one device, the first team picks it before anyone is ready. Changing the map un-readies everyone so they can change their builds. The maps:
 
