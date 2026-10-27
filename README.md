@@ -8,11 +8,11 @@ Each team builds a mech:
 
 - **Pick a body:** 🕷️ Spider (fast and small, but fragile), 🤖 Humanoid (its arms shoot and swing 20% faster), or 🐕 4-Legged (slow, but very tough).
 - **Spend 12 bolts on power-ups,** each with 3 levels. Level 1 costs 1 bolt, level 2 costs 2 more, level 3 costs 3 more.
-  - 🛡️ **Armor:** take 20%, 35% or 55% less damage.
+  - 🛡️ **Armor:** take 17%, 30% or 45% less damage.
   - 🔫 **Gun:** every mech has a little blaster. Upgrades make it faster and stronger, and level 3 has two barrels.
   - 🗡️ **Melee:** a giant sword that hits hard up close and knocks enemies back.
   - 📏 **Size:** bigger mechs have more health and longer swords, but they're slower and easier to hit.
-  - 🎯 **Targeting:** the gun aims ahead of moving enemies, at where they'll be when the shot gets there, and shoots steadier. The higher the level, the better it leads them. Level 3 leads them perfectly.
+  - 🎯 **Targeting:** the gun aims ahead of moving enemies and shoots steadier, and its shots hit weak spots for 10%, 30% or 60% more damage.
   - 🧠 **Intelligence:** the mech fights smarter. Level 1 picks on hurt enemies, and gun mechs run from swords (without getting stuck in corners) and step out from behind pillars. Level 2 also dodges bullets. Level 3 dodges like a ninja, and sword mechs zigzag when charging at a gun.
 
 The map is shown while you build, so you can build for it. Online, the host picks the map (or 🎲 for a random one). On one device, the first team picks it before anyone is ready. Changing the map un-readies everyone so they can change their builds. The maps:

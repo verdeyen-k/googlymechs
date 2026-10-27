@@ -14,20 +14,21 @@
   };
   const TEMPLATE_KEYS = Object.keys(TEMPLATES);
   const UPGRADES = [
-    { k: 'armor', icon: '🛡️', name: 'Armor',  lv: ['No armor', 'Takes 20% less damage', 'Takes 35% less damage', 'Takes 55% less damage'] },
+    { k: 'armor', icon: '🛡️', name: 'Armor',  lv: ['No armor', 'Takes 17% less damage', 'Takes 30% less damage', 'Takes 45% less damage'] },
     { k: 'gun',   icon: '🔫', name: 'Gun',    lv: ['Little blaster', 'Faster, stronger gun', 'Rapid-fire gun', 'Double-barrel blaster'] },
     { k: 'melee', icon: '🗡️', name: 'Melee',  lv: ['No sword', 'Giant sword', 'Bigger, faster sword', 'Enormous sword'] },
     { k: 'size',  icon: '📏', name: 'Size',   lv: ['Normal size', 'Bigger: more health, a bit slower', 'Huge', 'Gigantic'] },
-    { k: 'aim',   icon: '🎯', name: 'Targeting', lv: ['Shoots where enemies are', 'Aims a bit ahead of moving enemies', 'Aims well ahead, steadier shots', 'Perfect lead, dead-steady shots'] },
+    { k: 'aim',   icon: '🎯', name: 'Targeting', lv: ['Shoots where enemies are', 'Aims a bit ahead, hits weak spots: +10% damage', 'Aims further ahead, steadier: +30% damage', 'Dead-steady shots: +60% damage'] },
     { k: 'brain', icon: '🧠', name: 'Intelligence', lv: ['Goes after the closest enemy', 'Picks on hurt enemies, runs from swords, steps out from behind pillars', 'Also dodges bullets', 'Dodges like a ninja, zigzags at guns'] },
   ];
-  const ARMOR = [0, 0.2, 0.35, 0.55];
-  const GUN = [{ dmg: 4, rate: 1.5 }, { dmg: 6, rate: 2 }, { dmg: 7, rate: 2.8 }, { dmg: 6, rate: 2.5 }];
+  const ARMOR = [0, 0.17, 0.3, 0.45];
+  const GUN = [{ dmg: 4, rate: 1.5 }, { dmg: 6, rate: 2 }, { dmg: 7, rate: 2.8 }, { dmg: 5, rate: 2.5 }];
   // How far ahead of a moving enemy the gun aims: 0 = right at them, 1 = exactly where they'll be when the shot gets there.
-  const TARGETING = [0, 0.4, 0.75, 1];
+  const TARGETING = [0, 0.4, 0.55, 0.65];  // (aiming all the way ahead overshoots mechs that keep changing direction)
   const SPREAD = [0.16, 0.1, 0.06, 0.03];  // and how wobbly the shots are
-  const MELEE = [null, { dmg: 26, every: 1.3, reach: 30 }, { dmg: 36, every: 1.1, reach: 40 }, { dmg: 44, every: 0.9, reach: 52 }];
-  const SIZE = [{ s: 1, hp: 1, sp: 1 }, { s: 1.2, hp: 1.35, sp: 0.95 }, { s: 1.4, hp: 1.75, sp: 0.9 }, { s: 1.6, hp: 2.2, sp: 0.85 }];
+  const AIM_DMG = [1, 1.1, 1.3, 1.6];       // and how much harder the shots hit, from hitting weak spots
+  const MELEE = [null, { dmg: 30, every: 1.3, reach: 30 }, { dmg: 52, every: 1.0, reach: 46 }, { dmg: 64, every: 0.9, reach: 58 }];
+  const SIZE = [{ s: 1, hp: 1, sp: 1 }, { s: 1.2, hp: 1.3, sp: 0.95 }, { s: 1.4, hp: 1.55, sp: 0.9 }, { s: 1.6, hp: 1.8, sp: 0.85 }];
   const COLORS = ['#ff6b6b', '#4dabf7', '#51cf66', '#ffd43b'];
   const COLOR_NAMES = ['Red', 'Blue', 'Green', 'Yellow'];
   const MAX_TEAMS = COLORS.length;
@@ -38,7 +39,7 @@
     const gun = GUN[up.gun || 0], melee = MELEE[up.melee || 0];
     return {
       hp: Math.round(T.hp * sz.hp), speed: T.speed * sz.sp, mud: T.mud, r: T.r * sz.s, armor: ARMOR[up.armor || 0],
-      gunDmg: gun.dmg, gunEvery: 1 / (gun.rate * T.fast), barrels: (up.gun || 0) === 3 ? 2 : 1,
+      gunDmg: gun.dmg * AIM_DMG[up.aim || 0], gunEvery: 1 / (gun.rate * T.fast), barrels: (up.gun || 0) === 3 ? 2 : 1,
       melee: melee && { dmg: melee.dmg, every: melee.every / T.fast, reach: melee.reach * sz.s },
     };
   }
@@ -243,7 +244,7 @@
 
   // ── Online rooms ─────────────────────────────────────────────────────────
   // Bump with the ?v= on the script in index.html whenever what goes in the room changes.
-  const VERSION = 6;
+  const VERSION = 7;
   const OUTDATED = 'That room is using a different version of Googly Mechs. Everyone needs to refresh the page.';
   const ROOMS = 'googlymechs/rooms';
 
